@@ -1,63 +1,94 @@
-require('dotenv').config();
-const express = require('express');
-const mongoose = require('mongoose');
+import 'dotenv/config';
+import express from 'express';
+import mongoose from 'mongoose';
+
 const app = express();
-
-// Bắt buộc: Cấu hình để Express có thể đọc được dữ liệu JSON gửi lên từ Client
-app.use(express.json());
-
 const port = process.env.PORT || 5000;
 
-// Kết nối MongoDB
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Ket noi MongoDB Atlas thanh cong!'))
-  .catch((err) => console.log('Loi ket noi MongoDB:', err));
+app.use(express.json());
 
-// [Câu 35] Tạo Model Student với các trường studentId, name, email
 const studentSchema = new mongoose.Schema({
-  studentId: String,
-  name: String,
-  email: String
+  studentId: { type: String, required: true },
+  name: { type: String, required: true },
+  email: { type: String, required: true }
 });
+
 const Student = mongoose.model('Student', studentSchema);
 
-// [Câu 36] API GET /api/students: Lấy danh sách toàn bộ sinh viên
-app.get('/api/students', async (req, res) => {
-  const students = await Student.find();
-  res.json(students);
+app.get('/', (req, res) => {
+  res.json({ message: 'Backend dang hoat dong', endpoints: ['/api/hello', '/api/students'] });
 });
 
-// [Câu 37] API POST /api/students: Thêm một sinh viên mới
+app.get('/api/hello', (req, res) => {
+  res.json({ message: 'Backend dang hoat dong' });
+});
+
+app.get('/api/students', async (req, res) => {
+  try {
+    const students = await Student.find();
+    res.json(students);
+  } catch (error) {
+    res.status(500).json({ error: 'Khong the lay danh sach sinh vien' });
+  }
+});
+
 app.post('/api/students', async (req, res) => {
   try {
-    const newStudent = await Student.create(req.body);
-    res.status(201).json(newStudent);
+    const student = await Student.create(req.body);
+    res.status(201).json(student);
   } catch (error) {
-    res.status(400).json({ error: 'Khong the them sinh vien' });
+    res.status(400).json({ error: error.message });
   }
 });
 
-// [Câu 38] API PUT /api/students/:id : Cập nhật thông tin sinh viên
 app.put('/api/students/:id', async (req, res) => {
   try {
-    const updatedStudent = await Student.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json(updatedStudent);
+    const student = await Student.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+
+    if (!student) {
+      return res.status(404).json({ error: 'Khong tim thay sinh vien' });
+    }
+
+    res.json(student);
   } catch (error) {
-    res.status(400).json({ error: 'Khong the cap nhat' });
+    res.status(400).json({ error: 'ID khong hop le hoac cap nhat that bai' });
   }
 });
 
-// [Câu 39] API DELETE /api/students/:id : Xóa sinh viên
 app.delete('/api/students/:id', async (req, res) => {
   try {
-    await Student.findByIdAndDelete(req.params.id);
+    const student = await Student.findByIdAndDelete(req.params.id);
+
+    if (!student) {
+      return res.status(404).json({ error: 'Khong tim thay sinh vien' });
+    }
+
     res.json({ message: 'Da xoa sinh vien thanh cong' });
   } catch (error) {
-    res.status(400).json({ error: 'Khong the xoa' });
+    res.status(400).json({ error: 'ID khong hop le hoac xoa that bai' });
   }
 });
 
-// Lắng nghe server
-app.listen(port, () => {
-  console.log(`Server dang chay tai port ${port}`);
-});
+async function startServer() {
+  try {
+    if (!process.env.MONGODB_URI) {
+      throw new Error('Thieu MONGODB_URI trong file .env');
+    }
+
+    await mongoose.connect(process.env.MONGODB_URI);
+    console.log('Ket noi MongoDB Atlas thanh cong!');
+
+    app.listen(port, () => {
+      console.log(`Server dang chay tai http://localhost:${port}`);
+    });
+  } catch (error) {
+    console.error('Loi khoi dong:', error.message);
+    process.exit(1);
+  }
+}
+
+startServer();
